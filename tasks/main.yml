@@ -1,0 +1,69 @@
+---
+
+# Check vars/main.yml to set distro-specific config file location
+- name: Set the smartd configuration file path
+  set_fact:
+    smartd_config_path: "{{ smartd_possible_config_paths[ansible_distribution] | default(smartd_possible_config_paths.default) }}"
+
+- name: Install smartmontools
+  package:
+    name: smartmontools
+    state: latest
+
+- name: Get all disks smartmontools support
+  shell: |
+    [[ `smartctl --scan -d ata  | cut -c -1` != "#" ]] && smartctl --scan -d ata  | awk '{print $1}'
+    [[ `smartctl --scan -d scsi | cut -c -1` != "#" ]] && smartctl --scan -d scsi | awk '{print $1}'
+    [[ `smartctl --scan -d sat  | cut -c -1` != "#" ]] && smartctl --scan -d sat  | awk '{print $1}'
+    [[ `smartctl --scan -d nvme | cut -c -1` != "#" ]] && smartctl --scan -d nvme | awk '{print $1}'
+  register: disks
+  changed_when: false
+
+- name: Check if disks support SMART
+  shell: "smartctl -s on {{ item }} ; smartctl -i {{ item }} | grep -qc 'SMART support is: Enabled'"
+  with_items: disks.stdout_lines
+  register: smart
+  ignore_errors: True
+  changed_when: false
+
+- name: Ensure smartd configuration is in place (smart enabled devices present)
+  template:
+    src: smartd.conf.j2
+    dest: "{{ smartd_config_path }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  notify: restart smartd
+  when: smart|success
+
+- name: Ensure smartd configuration is in place (no smart enabled devices present)
+  template:
+    src: smartd.dist.j2
+    dest: "{{ smartd_config_path }}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  notify: restart smartd
+  when: smart|failed
+
+- name: Ensure default file is configured (start_smartd)
+  lineinfile: >
+    dest=/etc/default/smartmontools
+    regexp="^start_smartd="
+    line="start_smartd=yes"
+  notify: restart smartd
+  when: smart|success
+
+- name: Ensure default file is configured (smartd_opts)
+  lineinfile: >
+    dest=/etc/default/smartmontools
+    regexp="^smartd_opts="
+    line='smartd_opts="--interval=1800"'
+  notify: restart smartd
+  when: smart|success
+
+- name: enable smartd service
+  service: name=smartd enabled=yes
+  when: smart|success
