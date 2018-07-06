@@ -11,16 +11,20 @@
 
 - name: Get all disks smartmontools support
   shell: |
-    if [ `smartctl --scan -d ata  | cut -c -1` != "#" ] ; then smartctl --scan -d ata  | awk '{print $1}' ; fi
-    if [ `smartctl --scan -d scsi | cut -c -1` != "#" ] ; then smartctl --scan -d scsi | awk '{print $1}' ; fi
-    if [ `smartctl --scan -d sat  | cut -c -1` != "#" ] ; then smartctl --scan -d sat  | awk '{print $1}' ; fi
-    if [ `smartctl --scan -d nvme | cut -c -1` != "#" ] ; then smartctl --scan -d nvme | awk '{print $1}' ; fi
+    if [[ `smartctl --scan -d ata  | cut -c -1` != "#" ]] ; then smartctl --scan -d ata  | awk '{print $1}' ; fi
+    if [[ `smartctl --scan -d scsi | cut -c -1` != "#" ]] ; then smartctl --scan -d scsi | awk '{print $1}' ; fi
+    if [[ `smartctl --scan -d sat  | cut -c -1` != "#" ]] ; then smartctl --scan -d sat  | awk '{print $1}' ; fi
+    if [[ `smartctl --scan -d nvme | cut -c -1` != "#" ]] ; then smartctl --scan -d nvme | awk '{print $1}' ; fi
+  args:
+    executable: /bin/bash
   register: disks
   changed_when: false
 
 - name: Check if disks support SMART
   shell: "smartctl -s on {{ item }} ; smartctl -i {{ item }} | grep -qc 'SMART support is: Disabled'"
-  with_items: disks.stdout_lines
+  args:
+    executable: /bin/bash
+  with_items: "{{ disks.stdout_lines }}"
   register: smart_disabled
   ignore_errors: True
   changed_when: false
