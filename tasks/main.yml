@@ -1,9 +1,8 @@
 ---
 
-# Check vars/main.yml to set distro-specific config file location
-- name: Set the smartd configuration file path
-  set_fact:
-    smartd_config_path: "{{ smartd_possible_config_paths[ansible_distribution] | default(smartd_possible_config_paths.default) }}"
+- name: "Override vars/main.yml if needed"
+  include_vars: "vars_{{ ansible_distribution }}.yml"
+  when: ansible_distribution == 'Fedora'
 
 - name: Install smartmontools
   package:
@@ -20,11 +19,13 @@
   changed_when: false
 
 - name: Check if disks support SMART
-  shell: "smartctl -s on {{ item }} ; smartctl -i {{ item }} | grep -qc 'SMART support is: Enabled'"
+  shell: "smartctl -s on {{ item }} ; smartctl -i {{ item }} | grep -qc 'SMART support is: Disabled'"
   with_items: disks.stdout_lines
-  register: smart
+  register: smart_disabled
   ignore_errors: True
   changed_when: false
+
+# TODO list disks with smart disabled
 
 - name: Ensure smartd configuration is in place (smart enabled devices present)
   template:
@@ -35,7 +36,7 @@
     mode: 0644
     backup: yes
   notify: restart smartd
-  when: smart|success
+  when: smart_disabled|failed
 
 - name: Ensure smartd configuration is in place (no smart enabled devices present)
   template:
@@ -46,7 +47,7 @@
     mode: 0644
     backup: yes
   notify: restart smartd
-  when: smart|failed
+  when: smart_disabled|success
 
 - name: Ensure default file is configured (start_smartd)
   lineinfile: >
@@ -54,7 +55,7 @@
     regexp="^start_smartd="
     line="start_smartd=yes"
   notify: restart smartd
-  when: smart|success
+  when: smart_disabled|failed
 
 - name: Ensure default file is configured (smartd_opts)
   lineinfile: >
@@ -62,7 +63,7 @@
     regexp="^smartd_opts="
     line='smartd_opts="--interval=1800"'
   notify: restart smartd
-  when: smart|success
+  when: smart_disabled|failed
 
 - name: enable smartd service
   service: name=smartd enabled=yes

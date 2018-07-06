@@ -16,4 +16,5 @@ smartd_long_test_hour: 'random'   # hour of the day to start long test (two deci
 ```
 
 A randomization of scheduled time (hour,dow) is enabled to avoid to test many disks in the same time.
+
 **NOTE:** "." (dot) are like "?" wildcard in smartd config. Example: `smartd_short_test_month` with `'..'` value is executed every month.
