@@ -19,17 +19,27 @@
     executable: /bin/bash
   register: disks
   changed_when: false
+  failed_when: false
 
+# NOTE that some storage devices are seen by smartctl under more then one driver. Usually the overlap is
+# on sat/scsi, so `smartctl --scan -d sat` and `smartctl --scan -d scsi` can both return /dev/sda.
+# From here on, we use the `unique` filter to weed out these duplicates.
 - name: Check if disks support SMART
-  shell: "smartctl -s on {{ item }} ; smartctl -i {{ item }} | grep -qc 'SMART support is: Disabled'"
+  shell: "smartctl -s on {{ item }} ; smartctl -i {{ item }} | grep 'SMART support is' | grep -qcE 'Disabled|Unavailable'"
   args:
     executable: /bin/bash
-  with_items: "{{ disks.stdout_lines }}"
+  with_items: "{{ disks.stdout_lines | unique }}"
   register: smart_disabled
   ignore_errors: True
   changed_when: false
 
-# TODO list disks with smart disabled
+- name: List of disks smartctl can see
+  debug: msg="{{ item }}"
+  with_flattened: "{{ disks.stdout_lines | unique }}"
+
+- name: SMART status of each of the disks
+  debug: msg="{{ item.item }} SMART status {{ item.rc | replace("1", "[PASS]") | replace("0", "[FAIL]") }}"
+  with_flattened: "{{ smart_disabled.results }}"
 
 - name: Ensure smartd configuration is in place (smart enabled devices present)
   template:
