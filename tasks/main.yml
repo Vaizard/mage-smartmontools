@@ -11,10 +11,10 @@
 
 - name: Get all disks smartmontools support
   shell: |
-    [[ `smartctl --scan -d ata  | cut -c -1` != "#" ]] && smartctl --scan -d ata  | awk '{print $1}'
-    [[ `smartctl --scan -d scsi | cut -c -1` != "#" ]] && smartctl --scan -d scsi | awk '{print $1}'
-    [[ `smartctl --scan -d sat  | cut -c -1` != "#" ]] && smartctl --scan -d sat  | awk '{print $1}'
-    [[ `smartctl --scan -d nvme | cut -c -1` != "#" ]] && smartctl --scan -d nvme | awk '{print $1}'
+    if [ `smartctl --scan -d ata  | cut -c -1` != "#" ] ; then smartctl --scan -d ata  | awk '{print $1}' ; fi
+    if [ `smartctl --scan -d scsi | cut -c -1` != "#" ] ; then smartctl --scan -d scsi | awk '{print $1}' ; fi
+    if [ `smartctl --scan -d sat  | cut -c -1` != "#" ] ; then smartctl --scan -d sat  | awk '{print $1}' ; fi
+    if [ `smartctl --scan -d nvme | cut -c -1` != "#" ] ; then smartctl --scan -d nvme | awk '{print $1}' ; fi
   register: disks
   changed_when: false
 
@@ -36,7 +36,7 @@
     mode: 0644
     backup: yes
   notify: restart smartd
-  when: smart_disabled|failed
+  when: smart_disabled is failed
 
 - name: Ensure smartd configuration is in place (no smart enabled devices present)
   template:
@@ -47,7 +47,7 @@
     mode: 0644
     backup: yes
   notify: restart smartd
-  when: smart_disabled|success
+  when: smart_disabled is success
 
 - name: Ensure default file is configured (start_smartd)
   lineinfile: >
@@ -55,7 +55,7 @@
     regexp="^start_smartd="
     line="start_smartd=yes"
   notify: restart smartd
-  when: smart_disabled|failed
+  when: smart_disabled is failed
 
 - name: Ensure default file is configured (smartd_opts)
   lineinfile: >
@@ -63,8 +63,8 @@
     regexp="^smartd_opts="
     line='smartd_opts="--interval=1800"'
   notify: restart smartd
-  when: smart_disabled|failed
+  when: smart_disabled is failed
 
 - name: enable smartd service
   service: name=smartd enabled=yes
-  when: smart|success
+  when: smart_disabled is failed
